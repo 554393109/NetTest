@@ -12,5 +12,5 @@ desktop.ini
 /.vs
 
 ########### /* ###########
-/*/bin
+/*/bin/Debug
 /*/obj
