@@ -1,11 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Configuration;
-using System.Text;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 using Tracert.Extension;
-using Tracert.HttpClientUtils;
+using Tracert.Model;
 
 namespace Tracert
 {
@@ -14,13 +15,17 @@ namespace Tracert
         private SynchronizationContext SyncContext = null;
         private List<Button> arr_btn = new List<Button>();
 
+        private static byte[] PING_BUFFER = new byte[] { 0 };
+        private static bool isFinish = false;              // 到达目标地址
+        private static Thread thread;
+
         public MainForm()
         {
             InitializeComponent();
             SyncContext = SynchronizationContext.Current;
 
-            this.txt_Gateway.Text = ObjectExtensions.ValueOrEmpty(ConfigurationManager.AppSettings["Gateway"], "https://pay.storepos.cn/UnifiedPay/Gateway").Trim();
-            this.txt_Times.Text = ObjectExtensions.ValueOrEmpty(ConfigurationManager.AppSettings["Times"], "10").Trim();
+            this.Text = Setting.AppTitle;
+            this.txt_DomainOrIP.Text = Setting.Domain;
 
             arr_btn.Add(this.btn_Begin);
             arr_btn.Add(this.btn_Clean);
@@ -33,15 +38,44 @@ namespace Tracert
             #region 参数校验
 
             var list_err = new List<string>();
-            if (!ObjectExtensions.IsURL(this.txt_Gateway.Text))
-                list_err.Add("网关地址错误");
+            var domain = this.txt_DomainOrIP.Text.Trim();
+            var icmp_param = new ICMP_PARAM { PingOptions = new PingOptions(1, false) };
+            if (IPAddress.TryParse(domain, out icmp_param.IPAddress))
+            {
+                SyncContext.Send(this.AppendResult,
+                    string.Format("正在跟踪到 {0} 间的路由：", icmp_param.IPAddress.ToString()));
+            }
+            else
+            {
+                // 解析域名
+                var regEx = new Regex("\\d+\\.\\d+\\.\\d+\\.\\d+");     // 最多4级域名
+                var hostEntry = default(IPHostEntry);
 
-            if (!ObjectExtensions.IsInt(this.txt_Times.Text))
-                list_err.Add("循环次数错误");
-            else if (StringExtension.ToInt32(this.txt_Times.Text) <= 0)
-                list_err.Add("循环次数大于零");
-            else if (StringExtension.ToInt32(this.txt_Times.Text) > int.MaxValue)
-                list_err.Add("循环次数超出允许上限");
+                try
+                {
+                    hostEntry = Dns.GetHostEntry(this.txt_DomainOrIP.Text);
+                    foreach (var ipAddr in hostEntry.AddressList)
+                    {
+                        if (regEx.IsMatch(ipAddr.ToString()))
+                        {
+                            icmp_param.IPAddress = ipAddr;
+                            break;
+                        }
+                    }
+
+                    if (icmp_param.IPAddress == null)
+                        list_err.Add("域名错误或无法解析");
+                    else
+                    {
+                        SyncContext.Send(this.AppendResult,
+                            string.Format("正在跟踪到 {0} [{1}] 间的路由：", domain, icmp_param.IPAddress.ToString()));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    list_err.Add(ex.Message);
+                }
+            }
 
             if (list_err.Count > 0)
             {
@@ -52,88 +86,27 @@ namespace Tracert
 
             #endregion 参数校验
 
-            this.pgb_Test.Maximum = StringExtension.ToInt32(this.txt_Times.Text);
-            this.pgb_Test.Value = 0;
-            new Thread(new ThreadStart(RunTest)) { IsBackground = true }.Start();
+            thread = new Thread(new ParameterizedThreadStart(Icmp_Ping)) { IsBackground = true };
+            thread.Start(icmp_param);
         }
 
-        private void RunTest()
+        public void Icmp_Ping(object _icmp_param)
         {
             try
             {
-                #region 开始测试
+                var icmp_param = (ICMP_PARAM)_icmp_param;
 
-                var first_Duration = 0;                 // 首次耗时
-                var max_Duration = 0;                   // 最大耗时
-                var min_Duration = 0;                   // 最小耗时
-                var Times = StringExtension.ToInt32(this.txt_Times.Text) + 1;
-                var Url = this.txt_Gateway.Text.Trim();
-                var content = new StringBuilder();
-                content.Append("&agent_id=13000000000000000");
-                content.Append("&method=OrderQuery");
-                content.Append("&mch_id=1427848602");
-                content.Append("&version=1.0");
-                content.Append("&pid=yzq_product");
-                content.Append("&paytype=WECHAT");
-                content.Append("&out_trade_no=T0000001548647000000");
-                content.Append("&sign=23b1c670f3679bfb6baa879d02d09bbf");
+                var icmp = new Ping();
+                icmp.PingCompleted += Icmp_PingCompleted;
 
-                var _clientContext = new ClientContext(new ClassicClient());
+                var dt_begin = DateTime.Now;
+                icmp_param.SendTicks = dt_begin.Ticks;
+                icmp.SendAsync(icmp_param.IPAddress, Setting.Timemout, PING_BUFFER, icmp_param.PingOptions, icmp_param);
 
-                SyncContext.Send(this.AppendResult, "测试开始");
-                var dt_begin_Global = DateTime.Now;
-
-                #region 循环POST
-
-                for (int i = 1; i < Times; i++)
+                while (!isFinish)
                 {
-                    var dt_begin = DateTime.Now;
-                    var str_response_json = default(string);
-                    try
-                    {
-                        str_response_json = _clientContext.Post(Url, content.ToString().TrimStart('&'));
-                    }
-                    catch (Exception ex)
-                    {
-                        SyncContext.Send(this.AppendResult, "【Error】" + ex);
-                    }
-                    var dt_end = DateTime.Now;
-
-                    var curr_Duration = (int)(dt_end - dt_begin).TotalMilliseconds;
-                    if (1 == i)
-                    {
-                        first_Duration = curr_Duration;
-                        min_Duration = curr_Duration;
-                    }
-
-                    if (curr_Duration > max_Duration)
-                        max_Duration = curr_Duration;
-
-                    if (curr_Duration < min_Duration)
-                        min_Duration = curr_Duration;
-
-                    SyncContext.Send(this.UpdateProgress, 1);
-                    SyncContext.Send(this.AppendResult, string.Format("第【{0}】次请求，【耗时】{1}ms，【响应报文】：\r\n{2}", i, curr_Duration, ObjectExtensions.ValueOrEmpty(str_response_json)));
+                    Thread.Sleep(millisecondsTimeout: 1);
                 }
-
-                #endregion 循环POST
-
-                var dt_end_Global = DateTime.Now;
-
-                #region 统计
-
-                var total = (int)(dt_end_Global - dt_begin_Global).TotalMilliseconds;
-                var avg = (int)(total / (Times - 1));
-
-                #endregion 统计
-
-                SyncContext.Send(this.AppendResult, string.Format("测试完成，【合计耗时】：{0}ms，【首次耗时】：{1}ms，【最大耗时】：{2}ms，【最小耗时】：{3}ms，【平均耗时】：{4}ms", total, first_Duration, max_Duration, min_Duration, avg));
-                MessageBox.Show(text: string.Format("【合计耗时】：{0}ms\r\n【首次耗时】：{1}ms\r\n【最大耗时】：{2}ms\r\n【最小耗时】：{3}ms\r\n【平均耗时】：{4}ms", total, first_Duration, max_Duration, min_Duration, avg)
-                    , caption: "测试完成"
-                    , buttons: MessageBoxButtons.OK
-                    , icon: MessageBoxIcon.Information);
-
-                #endregion 开始测试
             }
             catch (Exception ex)
             {
@@ -145,6 +118,38 @@ namespace Tracert
             }
         }
 
+        private void Icmp_PingCompleted(object sender, PingCompletedEventArgs e)
+        {
+            var dt_finish = DateTime.Now;
+            var icmp_param = (ICMP_PARAM)e.UserState;
+            long nDeltaMS = (dt_finish.Ticks - icmp_param.SendTicks) / TimeSpan.TicksPerMillisecond;
+
+            SyncContext.Send(this.AppendResult,
+                string.Format("【跃点数】：{0}\t\t【耗时】：{1}\t\t【主机地址】：{2}",
+                    icmp_param.PingOptions.Ttl,
+                    (e.Reply.Status == IPStatus.TimedOut) ? "*" : nDeltaMS.ToString() + "ms",
+                    e.Reply.Address.ToString()));
+
+            if (icmp_param.IPAddress.Equals(e.Reply.Address))
+            {
+                SyncContext.Send(this.AppendResult, "已到达目标地址！");
+                isFinish = true;
+                return;
+            }
+
+            if (icmp_param.PingOptions.Ttl >= Setting.MaxHops)
+            {
+                SyncContext.Send(this.AppendResult, "已达到最大跃点数！");
+                isFinish = true;
+                return;
+            }
+
+            var icmp = (Ping)sender;
+            icmp_param.PingOptions.Ttl++;
+            icmp_param.SendTicks = DateTime.Now.Ticks;
+            icmp.SendAsync(icmp_param.IPAddress, Setting.Timemout, PING_BUFFER, icmp_param.PingOptions, icmp_param);
+        }
+
         private void AppendResult(object result)
         {
             if (ObjectExtensions.IsNullOrWhiteSpace(result))
@@ -152,8 +157,8 @@ namespace Tracert
 
             this.txt_Result.AppendText(ObjectExtensions.ValueOrEmpty(result));
             this.txt_Result.AppendText("\r\n");
-            this.txt_Result.AppendText("----------------------------------------------------------------------------------------------------------------");
-            this.txt_Result.AppendText("\r\n");
+            //this.txt_Result.AppendText("----------------------------------------------------------------------------------------------------------------");
+            //this.txt_Result.AppendText("\r\n");
             this.txt_Result.AppendText("\r\n");
         }
 
@@ -162,20 +167,21 @@ namespace Tracert
             var _isEnabled = Convert.ToBoolean(isEnabled);
             arr_btn.ForEach(item => item.Enabled = _isEnabled);
 
-            this.txt_Gateway.ReadOnly = !_isEnabled;
-            this.txt_Times.ReadOnly = !_isEnabled;
-        }
-
-        private void UpdateProgress(object step)
-        {
-            var _step = Convert.ToInt32(step);
-            if ((this.pgb_Test.Value + _step) <= this.pgb_Test.Maximum)
-                this.pgb_Test.Value += _step;
+            this.txt_DomainOrIP.ReadOnly = !_isEnabled;
         }
 
         private void btn_Clean_Click(object sender, EventArgs e)
         {
             this.txt_Result.Clear();
+        }
+
+        private void MainForm_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            if (thread != null)
+            {
+                thread.Abort();
+                thread = null;
+            }
         }
     }
 }

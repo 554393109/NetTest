@@ -43,28 +43,25 @@
 /************************************************************************
  * 项目名称：  Tracert.Model  
  * 项目描述：  
- * 类 名 称：  Setting
+ * 类 名 称：  ICMP_PARAM
  * 版 本 号：  v1.0.0.0 
  * 说    明：  
  * 作    者：  尹自强
- * 创建时间：  2019/6/26 9:56:37
- * 更新时间：  2019/6/26 9:56:37
+ * 创建时间：  2019/6/26 11:22:39
+ * 更新时间：  2019/6/26 11:22:39
 ************************************************************************
  * Copyright @ 尹自强 2019. All rights reserved.
 ************************************************************************/
 
-using System;
-using System.Configuration;
-using System.Diagnostics;
-using Tracert.Extension;
+using System.Net;
+using System.Net.NetworkInformation;
 
 namespace Tracert.Model
 {
-    public class Setting
+    public class ICMP_PARAM
     {
-        public static readonly string AppTitle = "超赢聚合支付网关路由跟踪 - v" + FileVersionInfo.GetVersionInfo(System.Windows.Forms.Application.ExecutablePath).ProductVersion;
-        public static readonly string Domain = ObjectExtensions.ValueOrEmpty(ConfigurationManager.AppSettings["Domain"], "pay.storepos.cn").Trim();
-        public static readonly int Timemout = Convert.ToInt32(ObjectExtensions.ValueOrEmpty(ConfigurationManager.AppSettings["Timemout"], "1000").Trim());
-        public static readonly int MaxHops = Convert.ToInt32(ObjectExtensions.ValueOrEmpty(ConfigurationManager.AppSettings["Timemout"], "30").Trim());
+        internal long SendTicks;
+        internal IPAddress IPAddress;
+        internal PingOptions PingOptions;
     }
 }
