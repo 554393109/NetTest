@@ -5,6 +5,8 @@ VisualStudioVersion = 15.0.28307.168
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetTest", "NetTest\NetTest.csproj", "{0B6EF342-3250-4249-81EB-BDBA58FA1001}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tracert", "Tracert\Tracert.csproj", "{A3630C18-6239-46C1-9BBD-CA3332E9265D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{0B6EF342-3250-4249-81EB-BDBA58FA1001}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0B6EF342-3250-4249-81EB-BDBA58FA1001}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0B6EF342-3250-4249-81EB-BDBA58FA1001}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3630C18-6239-46C1-9BBD-CA3332E9265D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3630C18-6239-46C1-9BBD-CA3332E9265D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3630C18-6239-46C1-9BBD-CA3332E9265D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3630C18-6239-46C1-9BBD-CA3332E9265D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
