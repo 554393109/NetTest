@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
@@ -13,11 +15,13 @@ namespace Tracert
     public partial class MainForm : Form
     {
         private SynchronizationContext SyncContext = null;
+        private static readonly object locker = new object();
         private List<Button> arr_btn = new List<Button>();
 
         private static byte[] PING_BUFFER = new byte[] { 0 };
         private static bool isFinish = false;              // 到达目标地址
         private static Thread thread;
+        private static List<string> list_log = new List<string>();
 
         public MainForm()
         {
@@ -34,6 +38,7 @@ namespace Tracert
         private void btn_Begin_Click(object sender, EventArgs e)
         {
             this.EnableControl(false);
+            list_log.Clear();
 
             #region 参数校验
 
@@ -80,6 +85,7 @@ namespace Tracert
             if (list_err.Count > 0)
             {
                 this.AppendResult(StringExtension.Join(list_err.ToArray(), ";"));
+                WriteLogFile();
                 this.EnableControl(true);
                 return;
             }
@@ -134,6 +140,7 @@ namespace Tracert
             {
                 SyncContext.Send(this.AppendResult, "已到达目标地址！");
                 isFinish = true;
+                WriteLogFile();
                 return;
             }
 
@@ -141,6 +148,7 @@ namespace Tracert
             {
                 SyncContext.Send(this.AppendResult, "已达到最大跃点数！");
                 isFinish = true;
+                WriteLogFile();
                 return;
             }
 
@@ -156,10 +164,11 @@ namespace Tracert
                 return;
 
             this.txt_Result.AppendText(ObjectExtensions.ValueOrEmpty(result));
-            this.txt_Result.AppendText("\r\n");
-            //this.txt_Result.AppendText("----------------------------------------------------------------------------------------------------------------");
-            //this.txt_Result.AppendText("\r\n");
-            this.txt_Result.AppendText("\r\n");
+            this.txt_Result.AppendText(Environment.NewLine);
+            this.txt_Result.AppendText(Environment.NewLine);
+
+            list_log.Add(ObjectExtensions.ValueOrEmpty(result));
+            list_log.Add(Environment.NewLine);
         }
 
         private void EnableControl(object isEnabled)
@@ -181,6 +190,43 @@ namespace Tracert
             {
                 thread.Abort();
                 thread = null;
+            }
+        }
+
+        private void WriteLogFile()
+        {
+            try
+            {
+                if (list_log.Count > 0)
+                {
+                    var name_file = string.Format("Tracert-{0:yyMMddHHmmss}-【{1}】.log", DateTime.Now, this.txt_DomainOrIP.Text.Trim());
+                    var path_file = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, name_file);
+
+                    lock (locker)
+                    {
+                        var file = new FileInfo(path_file);
+                        if (file.Exists
+                            && file.Attributes == FileAttributes.ReadOnly)
+                        {
+                            MessageBox.Show(string.Format("{0} 已存在，且文件只读无法写入日志", name_file));
+                            return;
+                        }
+
+                        using (var sw = new StreamWriter(path_file, append: true, encoding: Encoding.UTF8))
+                        {
+                            sw.Write(StringExtension.Join(list_log.ToArray(), string.Empty));
+                            sw.Flush();
+                            sw.Dispose();
+                        }
+                    }
+
+                    SyncContext.Send(this.AppendResult,
+                                string.Format("日志文件：{0}", path_file));
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
             }
         }
     }

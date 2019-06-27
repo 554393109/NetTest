@@ -65,6 +65,6 @@ namespace Tracert.Model
         public static readonly string AppTitle = "超赢聚合支付网关路由跟踪 - v" + FileVersionInfo.GetVersionInfo(System.Windows.Forms.Application.ExecutablePath).ProductVersion;
         public static readonly string Domain = ObjectExtensions.ValueOrEmpty(ConfigurationManager.AppSettings["Domain"], "pay.storepos.cn").Trim();
         public static readonly int Timemout = Convert.ToInt32(ObjectExtensions.ValueOrEmpty(ConfigurationManager.AppSettings["Timemout"], "1000").Trim());
-        public static readonly int MaxHops = Convert.ToInt32(ObjectExtensions.ValueOrEmpty(ConfigurationManager.AppSettings["Timemout"], "30").Trim());
+        public static readonly int MaxHops = Convert.ToInt32(ObjectExtensions.ValueOrEmpty(ConfigurationManager.AppSettings["MaxHops"], "30").Trim());
     }
 }
