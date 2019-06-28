@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
@@ -18,8 +19,9 @@ namespace NetTest
         {
             InitializeComponent();
             SyncContext = SynchronizationContext.Current;
+            this.Text = "超赢支付网关网络测试 - v" + FileVersionInfo.GetVersionInfo(System.Windows.Forms.Application.ExecutablePath).ProductVersion;
 
-            this.txt_Gateway.Text = ObjectExtensions.ValueOrEmpty(ConfigurationManager.AppSettings["Gateway"], "https://pay.storepos.cn/UnifiedPay/Gateway").Trim();
+            this.txt_Gateway.Text = ObjectExtensions.ValueOrEmpty(ConfigurationManager.AppSettings["Gateway"], "http://pay.storepos.cn/UnifiedPay/Gateway").Trim();
             this.txt_Times.Text = ObjectExtensions.ValueOrEmpty(ConfigurationManager.AppSettings["Times"], "10").Trim();
 
             arr_btn.Add(this.btn_Begin);
